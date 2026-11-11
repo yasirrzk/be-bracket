@@ -4,8 +4,12 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
+import { MatchesModule } from './matches/matches.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { TournamentsModule } from './tournaments/tournaments.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
@@ -20,6 +24,10 @@ import { RedisModule } from './redis/redis.module';
     ]),
     PrismaModule,
     RedisModule,
+    UsersModule,
+    AuthModule,
+    TournamentsModule,
+    MatchesModule,
   ],
   controllers: [AppController],
   providers: [
