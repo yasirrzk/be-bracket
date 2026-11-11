@@ -1,0 +1,111 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  ORGANIZER
+  PLAYER
+}
+
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MatchStatus {
+  PENDING
+  READY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      Role     @default(PLAYER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tournamentsOrganized Tournament[] @relation("TournamentOrganizer")
+  tournamentEntries    TournamentParticipant[]
+  homeMatches          Match[]      @relation("HomeParticipant")
+  awayMatches          Match[]      @relation("AwayParticipant")
+  wonMatches           Match[]      @relation("WinnerParticipant")
+
+  @@map("users")
+}
+
+model Tournament {
+  id          String           @id @default(uuid())
+  title       String
+  description String?
+  status      TournamentStatus @default(DRAFT)
+  maxParticipants Int
+  organizerId String
+  organizer   User             @relation("TournamentOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  
+  participants TournamentParticipant[]
+  matches      Match[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tournaments")
+}
+
+model TournamentParticipant {
+  id           String     @id @default(uuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seed         Int?
+  registeredAt DateTime   @default(now())
+
+  @@unique([tournamentId, userId])
+  @@map("tournament_participants")
+}
+
+model Match {
+  id           String      @id @default(uuid())
+  tournamentId String
+  tournament   Tournament  @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  round        Int
+  matchOrder   Int
+  status       MatchStatus @default(PENDING)
+
+  homeId       String?
+  home         User?       @relation("HomeParticipant", fields: [homeId], references: [id], onDelete: SetNull)
+
+  awayId       String?
+  away         User?       @relation("AwayParticipant", fields: [awayId], references: [id], onDelete: SetNull)
+
+  homeScore    Int         @default(0)
+  awayScore    Int         @default(0)
+
+  winnerId     String?
+  winner       User?       @relation("WinnerParticipant", fields: [winnerId], references: [id], onDelete: SetNull)
+
+  nextMatchId  String?
+  nextMatch    Match?      @relation("BracketProgression", fields: [nextMatchId], references: [id], onDelete: SetNull)
+  previousMatches Match[]  @relation("BracketProgression")
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([tournamentId, round])
+  @@map("matches")
+}
