@@ -8,14 +8,12 @@ import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter
 import { TransformResponseInterceptor } from '../src/common/interceptors/transform-response.interceptor';
 
 const server = express();
-let isAppInitialized = false;
+let cachedHandler: ((req: Request, res: Response) => void) | null = null;
 
-async function bootstrap() {
-  if (isAppInitialized) {
-    return;
-  }
-
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
+async function bootstrap(): Promise<(req: Request, res: Response) => void> {
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
+    logger: ['error', 'warn', 'log'],
+  });
 
   // Global Interceptor and Filter
   app.useGlobalInterceptors(new TransformResponseInterceptor());
@@ -61,10 +59,22 @@ async function bootstrap() {
   });
 
   await app.init();
-  isAppInitialized = true;
+  return server;
 }
 
 export default async function handler(req: Request, res: Response) {
-  await bootstrap();
-  server(req, res);
+  try {
+    if (!cachedHandler) {
+      cachedHandler = await bootstrap();
+    }
+    return cachedHandler(req, res);
+  } catch (error: unknown) {
+    console.error('Serverless Bootstrap Error:', error);
+    return res.status(500).json({
+      success: false,
+      statusCode: 500,
+      error: 'Internal Server Error',
+      message: error instanceof Error ? error.message : 'Failed to initialize backend function',
+    });
+  }
 }

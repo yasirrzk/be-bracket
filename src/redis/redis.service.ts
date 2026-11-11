@@ -10,7 +10,7 @@ import Redis from 'ioredis';
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
-  private client!: Redis;
+  private client?: Redis;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -19,33 +19,45 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const port = this.configService.get<number>('REDIS_PORT', 6379);
     const password = this.configService.get<string>('REDIS_PASSWORD', '');
 
-    this.client = new Redis({
-      host,
-      port: Number(port),
-      password: password || undefined,
-      lazyConnect: true,
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 1,
-      retryStrategy: (times) => {
-        if (times > 2) {
-          return null; // Stop retrying
-        }
-        return Math.min(times * 100, 500);
-      },
-    });
+    // In Vercel serverless, skip connecting to localhost if not configured
+    if (process.env.VERCEL && (!host || host === 'localhost')) {
+      this.logger.warn(
+        'Redis host not configured in Vercel environment. Redis features disabled gracefully.',
+      );
+      return;
+    }
 
-    this.client.on('error', (err) => {
-      this.logger.warn(`Redis connection error: ${err.message}`);
-    });
-
-    this.client
-      .connect()
-      .then(() => {
-        this.logger.log('Redis connected successfully');
-      })
-      .catch((err) => {
-        this.logger.warn(`Redis initial connect failed: ${err.message}`);
+    try {
+      this.client = new Redis({
+        host,
+        port: Number(port),
+        password: password || undefined,
+        lazyConnect: true,
+        enableOfflineQueue: false,
+        maxRetriesPerRequest: 1,
+        retryStrategy: (times) => {
+          if (times > 2) {
+            return null; // Stop retrying
+          }
+          return Math.min(times * 100, 500);
+        },
       });
+
+      this.client.on('error', (err) => {
+        this.logger.warn(`Redis connection error: ${err.message}`);
+      });
+
+      this.client
+        .connect()
+        .then(() => {
+          this.logger.log('Redis connected successfully');
+        })
+        .catch((err) => {
+          this.logger.warn(`Redis initial connect failed: ${err.message}`);
+        });
+    } catch (err: unknown) {
+      this.logger.warn(`Failed to initialize Redis client: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   async onModuleDestroy() {
@@ -59,7 +71,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  getClient(): Redis {
+  getClient(): Redis | undefined {
     return this.client;
   }
 
