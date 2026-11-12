@@ -18,7 +18,15 @@ export class PrismaService
 
   constructor() {
     const connectionString = process.env.DATABASE_URL;
-    const pool = new Pool({ connectionString });
+    const isLocal =
+      !connectionString ||
+      connectionString.includes('localhost') ||
+      connectionString.includes('127.0.0.1');
+
+    const pool = new Pool({
+      connectionString,
+      ssl: isLocal ? false : { rejectUnauthorized: false },
+    });
     const adapter = new PrismaPg(pool);
 
     // Oper adapter driver ke super constructor PrismaClient
